@@ -20,7 +20,7 @@
 
 start() ->
     application:start(inets),
-    application:start(jsx),
+    application:start(mochijson2),
     application:start(lager),
     application:start(gcm).
 
