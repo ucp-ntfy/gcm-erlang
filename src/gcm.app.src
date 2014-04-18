@@ -6,7 +6,6 @@
         kernel,
         stdlib,
         inets,
-        mochijson2,
         lager
     ]},
     {mod, {gcm_app, []}},

@@ -86,13 +86,13 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 do_push(RegIds, Message, Key, ErrorFun) ->
     lager:info("Message=~p; RegIds=~p~n", [Message, RegIds]),
-    GCMRequest = mochijson2:encode([{<<"registration_ids">>, RegIds}|Message]),
+    GCMRequest = jsonx:encode([{<<"registration_ids">>, RegIds}|Message]),
     ApiKey = string:concat("key=", Key),
 
     try httpc:request(post, {?BASEURL, [{"Authorization", ApiKey}], "application/json", GCMRequest}, [], []) of
         {ok, {{_, 200, _}, _Headers, GCMResponse}} ->
-            Json = mochijson2:decode(response_to_binary(GCMResponse)),
-            {_Multicast, _Success, Failure, Canonical, Results} = get_response_fields(Json),
+	    Json = jsonx:decode(response_to_binary(GCMResponse), [{format, proplist}]),
+	    {_Multicast, _Success, Failure, Canonical, Results} = get_response_fields(Json),
             case to_be_parsed(Failure, Canonical) of
                 true ->
                     parse_results(Results, RegIds, ErrorFun);
