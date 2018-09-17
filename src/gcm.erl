@@ -92,13 +92,19 @@ do_push(RegIds, Message, Key, ErrorFun) ->
 
     try httpc:request(post, {?BASEURL, [{"Authorization", ApiKey}], "application/json", GCMRequest}, [], []) of
         {ok, {{_, 200, _}, _Headers, GCMResponse}} ->
-	    Json = jsonx:decode(response_to_binary(GCMResponse), [{format, proplist}]),
-	    {_Multicast, _Success, Failure, Canonical, Results} = get_response_fields(Json),
-            case to_be_parsed(Failure, Canonical) of
-                true ->
-                    parse_results(Results, RegIds, ErrorFun);
-                false ->
-                    ok
+            Bin = response_to_binary(GCMResponse),
+            Json = jsonx:decode(Bin, [{format, proplist}]),
+            if not is_list(Json) ->
+                lager:error("FCM response JSON decode error. JSON = ~p", [Bin]),
+                ok;
+            true ->
+                {_Multicast, _Success, Failure, Canonical, Results} = get_response_fields(Json),
+                case to_be_parsed(Failure, Canonical) of
+                    true ->
+                        parse_results(Results, RegIds, ErrorFun);
+                    false ->
+                        ok
+                end
             end;
         {error, Reason} ->
             {error, Reason};
