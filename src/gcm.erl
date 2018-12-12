@@ -43,10 +43,10 @@ stop(Name) ->
     gen_server:call(Name, stop).
 
 push(Name, RegIds, Message) ->
-    gen_server:cast(Name, {send, RegIds, Message}).
+    gen_server:cast(Name, {send, RegIds, Message, default_trace_ref(), default_timeout()}).
 
 sync_push(Name, RegIds, Message) ->
-    gen_server:call(Name, {send, RegIds, Message}).
+    sync_push(Name, RegIds, Message, default_trace_ref(), default_timeout()).
 
 sync_push(Name, RegIds, Message, TraceRef, Timeout) ->
     gen_server:call(Name, {send, RegIds, Message, TraceRef, Timeout}, Timeout).
@@ -61,9 +61,6 @@ init([Key, ErrorFun]) ->
 handle_call(stop, _From, State) ->
     {stop, normal, stopped, State};
 
-handle_call({send, RegIds, Message}, _From, #state{key=Key, error_fun=ErrorFun} = State) ->
-    {reply, do_push(RegIds, Message, Key, ErrorFun), State};
-
 handle_call({send, RegIds, Message, TraceRef, Timeout}, _From, #state{key=Key, error_fun=ErrorFun} = State) ->
     {reply, do_push(RegIds, Message, Key, ErrorFun, TraceRef, Timeout), State};
 
@@ -71,8 +68,8 @@ handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
 
-handle_cast({send, RegIds, Message}, #state{key=Key, error_fun=ErrorFun} = State) ->
-    do_push(RegIds, Message, Key, ErrorFun),
+handle_cast({send, RegIds, Message, TraceRef, Timeout}, #state{key=Key, error_fun=ErrorFun} = State) ->
+    do_push(RegIds, Message, Key, ErrorFun, TraceRef, Timeout),
     {noreply, State};
 
 handle_cast(_Msg, State) ->
@@ -90,8 +87,11 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-do_push(RegIds, Message, Key, ErrorFun) ->
-  do_push(RegIds, Message, Key, ErrorFun, make_ref(), infinity).
+default_trace_ref() ->
+    {from, self()}.
+
+default_timeout() ->
+    5000.
 
 do_push(RegIds, Message, Key, ErrorFun, TraceRef, Timeout) ->
     ApiKey = string:concat("key=", Key),
