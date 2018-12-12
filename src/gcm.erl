@@ -24,6 +24,18 @@
 
 -record(state, {key, retry_after, error_fun}).
 
+-type name() :: atom().
+
+-type reg_ids() :: list(binary()).
+
+-type message() :: list(tuple()).
+
+-spec push(name(), reg_ids(), message()) -> ok.
+
+-spec sync_push(name(), reg_ids(), message()) -> any().
+
+-spec sync_push(name(), reg_ids(), message(), any(), timeout()) -> any().
+
 %%%===================================================================
 %%% API
 %%%===================================================================
