@@ -12,7 +12,7 @@
 
 %% API
 -export([start/2, start/3, stop/1, start_link/2, start_link/3]).
--export([push/3, sync_push/3]).
+-export([push/3, sync_push/3, sync_push/5]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -48,6 +48,9 @@ push(Name, RegIds, Message) ->
 sync_push(Name, RegIds, Message) ->
     gen_server:call(Name, {send, RegIds, Message}).
 
+sync_push(Name, RegIds, Message, TraceRef, Timeout) ->
+    gen_server:call(Name, {send, RegIds, Message, TraceRef, Timeout}, Timeout).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -60,6 +63,9 @@ handle_call(stop, _From, State) ->
 
 handle_call({send, RegIds, Message}, _From, #state{key=Key, error_fun=ErrorFun} = State) ->
     {reply, do_push(RegIds, Message, Key, ErrorFun), State};
+
+handle_call({send, RegIds, Message, TraceRef, Timeout}, _From, #state{key=Key, error_fun=ErrorFun} = State) ->
+    {reply, do_push(RegIds, Message, Key, ErrorFun, TraceRef, Timeout), State};
 
 handle_call(_Request, _From, State) ->
     Reply = ok,
@@ -85,14 +91,19 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 do_push(RegIds, Message, Key, ErrorFun) ->
-  % lager:info commented because that leaks private info to logs
-  % lager:info("Message=~p; RegIds=~p~n", [Message, RegIds]),
-    GCMRequest = jsonx:encode([{<<"registration_ids">>, RegIds}|Message]),
-    ApiKey = string:concat("key=", Key),
+  do_push(RegIds, Message, Key, ErrorFun, make_ref(), infinity).
 
-    try httpc:request(post, {?BASEURL, [{"Authorization", ApiKey}], "application/json", GCMRequest}, [], []) of
-        {ok, {{_, 200, _}, _Headers, GCMResponse}} ->
-            Bin = response_to_binary(GCMResponse),
+do_push(RegIds, Message, Key, ErrorFun, TraceRef, Timeout) ->
+    ApiKey = string:concat("key=", Key),
+    lager:debug("~p Timeout ~p Key ~p", [TraceRef, Timeout, erlang:adler32(Key)]),
+
+    GCMRequest = jsonx:encode([{<<"registration_ids">>, RegIds}|Message]),
+
+    try httpc:request(post, {?BASEURL, [{"Authorization", ApiKey}], "application/json", GCMRequest}, [{timeout, Timeout}], []) of
+        {ok, {{_, 200, _}, Headers, GCMResponse}} ->
+            lager:debug("~p Code:200 Headers:~p Response:~p", [TraceRef, Headers, GCMResponse]),
+
+            Bin  = response_to_binary(GCMResponse),
             Json = jsonx:decode(Bin, [{format, proplist}]),
             if not is_list(Json) ->
                 lager:error("FCM response JSON decode error. JSON = ~p", [Bin]),
@@ -106,16 +117,22 @@ do_push(RegIds, Message, Key, ErrorFun) ->
                         ok
                 end
             end;
+
+        {ok, {{_, 401, _}, Headers, _}} ->
+            lager:error("~p Code:401 Authorization. Headers:~p", [TraceRef, Headers]),
+            {stop, authorization, unknown};
+
+        {ok, {{_, Code, _}, Headers, Response}} ->
+            lager:error("~p Code:~p. Headers:~p Response:~p", [TraceRef, Code, Headers, Response]),
+            {noreply, unknown};
+
         {error, Reason} ->
+            lager:error("~p error ~p", [TraceRef, Reason]),
             {error, Reason};
-        {ok, {{_, 401, _}, _, _}} ->
-	    {stop, authorization, unknown};
-	{ok, {{_, Code, _}, _, _}} ->
-	    lager:error("Error response with status code ~p", [Code]),
-	    {noreply, unknown};
-	OtherError ->
-            lager:error("Other error: ~p~n", [OtherError]),
-	    {noreply, unknown}
+
+        OtherError ->
+            lager:error("~p Other error: ~p", [TraceRef, OtherError]),
+            {noreply, unknown}
     catch
         Exception ->
             {error, Exception}
