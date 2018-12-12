@@ -28,7 +28,7 @@ gcm_message_test_() ->
 
 send_valid_message(Pid) ->
     meck:expect(httpc, request,
-		fun(post, {_BaseURL, _AuthHeader, "application/json", _JSON}, [{timeout,infinity}], []) ->
+		fun(post, {_BaseURL, _AuthHeader, "application/json", _JSON}, [{timeout,5000}], []) ->
 			Reply = <<"{\"multicast_id\":\"whatever\",\"success\":1,\"results\":[{\"message_id\":\"1:0408\"}]}">>,
 			Pid ! {ok, {{"", 200, ""}, [], Reply}}
 		end),
@@ -53,7 +53,7 @@ send_valid_message_sync_timeout(_Pid) ->
 
 send_malformed_json(Pid) ->
     meck:expect(httpc, request,
-		fun(post, {_BaseURL, _AuthHeader, "application/json", _MalformedJSON}, [{timeout,infinity}], []) ->
+		fun(post, {_BaseURL, _AuthHeader, "application/json", _MalformedJSON}, [{timeout,5000}], []) ->
 			Pid ! {ok, {{"", 400, ""}, [], []}}
 		end),
     gcm:push(test, [<<"Token">>], [{<<"data">>, [{<<"type">>, <<"wakeUp">>}]}]),
@@ -66,7 +66,7 @@ send_malformed_json(Pid) ->
 
 send_wrong_auth(Pid) ->
     meck:expect(httpc, request,
-		fun(post, {_BaseURL, _WrongAuthHeader, "application/json", _JSON}, [{timeout,infinity}], []) ->
+		fun(post, {_BaseURL, _WrongAuthHeader, "application/json", _JSON}, [{timeout,5000}], []) ->
 			Pid ! {ok, {{"", 401, ""}, [], []}}
 		end),
     gcm:push(test, [<<"Token">>], [{<<"data">>, [{<<"type">>, <<"wakeUp">>}]}]),
@@ -79,7 +79,7 @@ send_wrong_auth(Pid) ->
 
 send_gcm_down(Pid) ->
     meck:expect(httpc, request,
-		fun(post, {_BaseURL, _WrongAuthHeader, "application/json", _JSON}, [{timeout,infinity}], []) ->
+		fun(post, {_BaseURL, _WrongAuthHeader, "application/json", _JSON}, [{timeout,5000}], []) ->
 			Pid ! {ok, {{"", 503, ""}, [], []}}
 		end),
     gcm:push(test, [<<"Token">>], [{<<"data">>, [{<<"type">>, <<"wakeUp">>}]}]),
